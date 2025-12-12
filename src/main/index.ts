@@ -18,6 +18,7 @@ function createMainWindow(): BrowserWindow {
     autoHideMenuBar: true,
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
+       enableRemoteModule: true,
       contextIsolation: true,
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false,
@@ -135,13 +136,15 @@ app.whenReady().then(() => {
 
   
   // e.g. handling 'save-segment' could be here or in ipc.ts — keep where it makes sense
-  ipcMain.handle('save-segment', async (_, buffer: Uint8Array, suggestedName?: string) => {
-    const filePath = await saveSegmentFile(Buffer.from(buffer), suggestedName);
-    console.log("save-segment handled", filePath);
-    // open trim window after saving
-    if (mainWindow) openTrimWindow(mainWindow, filePath)
-    return filePath
-  })
+ipcMain.handle('save-segment', async (_, buffers: { video: Uint8Array, audio: Uint8Array }, suggestedName?: string) => {
+  const filePath = await saveSegmentFile(buffers, suggestedName);
+  console.log("save-segment handled", filePath);
+
+  // open trim window after saving
+  if (mainWindow) openTrimWindow(mainWindow, filePath);
+
+  return filePath;
+});
 
   ipcMain.handle('recording:started', async () => {
     hideWindowCompletely();

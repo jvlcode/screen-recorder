@@ -8,12 +8,64 @@ import { fileURLToPath } from 'url'
 const segmentsDir = path.join(process.cwd(), 'segments')
 if (!fs.existsSync(segmentsDir)) fs.mkdirSync(segmentsDir)
 
-export async function saveSegmentFile(buffer: Buffer, suggestedName?: string) {
-  const filename = suggestedName || `segment_${Date.now()}_${uuidv4()}.webm`
+export async function saveSegmentFile(buffers: { video: Uint8Array, audio: Uint8Array }, suggestedName?: string) {
+  const filename = suggestedName || `segment_${Date.now()}_${uuidv4()}.mp4`
   const filePath = path.join(segmentsDir, filename)
-  await fs.promises.writeFile(filePath, buffer)
+
+  // Create temporary files for ffmpeg merging
+  const tmpVideo = path.join(segmentsDir, `tmp_video_${Date.now()}.webm`)
+  const tmpAudio = path.join(segmentsDir, `tmp_audio_${Date.now()}.webm`)
+
+  await fs.promises.writeFile(tmpVideo, Buffer.from(buffers.video))
+  await fs.promises.writeFile(tmpAudio, Buffer.from(buffers.audio))
+
+  // Merge using ffmpeg (copy video codec, encode audio to opus)
+  await new Promise<void>((resolve, reject) => {
+const args = [
+  "-y",
+  "-i", tmpVideo,
+  "-i", tmpAudio,
+
+  // constant frame rate
+  "-r", "30",
+
+  // VIDEO reencode → EXACT 6 Mbps
+  "-c:v", "libx264",
+  "-b:v", "6000k",
+  "-maxrate", "6000k",
+  "-bufsize", "6000k",
+  "-preset", "fast",
+  "-crf", "18",
+
+  // AUDIO
+  "-c:a", "aac",
+  "-b:a", "320k",
+
+  "-movflags", "+faststart",
+  filePath
+];
+
+
+    const proc = spawn(ffmpegPath as string, args, { stdio: 'inherit' })
+
+    proc.on('error', (err) => reject(err))
+    proc.on('close', async (code) => {
+      try {
+        // Cleanup temp files
+        fs.unlinkSync(tmpVideo)
+        fs.unlinkSync(tmpAudio)
+
+        if (code === 0) resolve()
+        else reject(new Error(`ffmpeg exited with code ${code}`))
+      } catch (err) {
+        reject(err)
+      }
+    })
+  })
+
   return filePath
 }
+
 
 
 export function trimSegmentFile(filePath: string, startSec: number, endSec: number): Promise<void> {
