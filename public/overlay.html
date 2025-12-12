@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Overlay</title>
+    <style>
+      html, body {
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        background: transparent;
+      }
+      .ripple {
+        position: absolute;
+        border-radius: 50%;
+        width: 20px;
+        height: 20px;
+        background-color: rgba(255, 18, 18, 0.5);
+        pointer-events: none;
+        animation: rippleAnim 0.5s ease-out forwards;
+      }
+      @keyframes rippleAnim {
+        0% { transform: scale(1); opacity: 1; }
+        100% { transform: scale(8); opacity: 0; }
+      }
+    </style>
+  </head>
+  <body>
+    <script>
+      window.api.on('show-ripple', ({ x, y }) => {
+        const div = document.createElement('div')
+        div.className = 'ripple'
+        div.style.left = x - 10 + 'px'
+        div.style.top = y - 10 + 'px'
+        document.body.appendChild(div)
+        setTimeout(() => div.remove(), 500)
+      })
+    </script>
+  </body>
+</html>
