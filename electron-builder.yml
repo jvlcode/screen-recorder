@@ -41,3 +41,6 @@ npmRebuild: false
 publish:
   provider: generic
   url: https://example.com/auto-updates
+extraResources:
+  - from: resources/python/mouse_tracker.py
+    to: .

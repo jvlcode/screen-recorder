@@ -3,7 +3,8 @@ import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { registerIpcHandlers, setMainWindowForIpc } from './ipc'
-import { saveSegmentFile } from './recorder'
+import { startRecording, startRecordingSeparate, stopRecording, stopRecordingAndMerge } from './ffmpeg'
+import { ChildProcessWithoutNullStreams, spawn } from 'child_process'
 
 let mainWindow: BrowserWindow | null = null
 let trimWindow: BrowserWindow | null = null
@@ -18,7 +19,7 @@ function createMainWindow(): BrowserWindow {
     autoHideMenuBar: true,
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
-       enableRemoteModule: true,
+      
       contextIsolation: true,
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false,
@@ -122,33 +123,82 @@ app.whenReady().then(() => {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
   }
 
-  // Hotkey to stop recording — restore UI and tell renderer to stop
-  globalShortcut.register('CommandOrControl+Shift+S', () => {
-    
-    if (mainWindow && !mainWindow.isDestroyed()) {
-        console.log("CommandOrControl+Shift+S hotkey");
-        mainWindow.webContents.send('recording:stop');
-        mainWindow.show();
-         mainWindow.setSkipTaskbar(false)
-        mainWindow.focus();
-    }
-  })
+  globalShortcut.register('CommandOrControl+Shift+S', async () => {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  
+
+  console.log("CommandOrControl+Shift+S hotkey pressed");
+
+  try {
+    // const filePath = await stopRecordingAndMerge();
+    if (pythonProcess) {
+    pythonProcess.kill("SIGINT");  // triggers save clicks.json
+    pythonProcess = null;
+  }
+    const filePath = await stopRecording();
+    console.log("Recording saved to:", filePath);
+
+    mainWindow.show();
+    mainWindow.setSkipTaskbar(false);
+    mainWindow.focus();
+
+    // Notify renderer (optional)
+    mainWindow.webContents.send('recording:stopped', filePath);
+
+    // Open trim window
+    openTrimWindow(mainWindow, filePath);
+  } catch (err) {
+    console.error("Failed to stop recording:", err);
+  }
+});
+
 
   
   // e.g. handling 'save-segment' could be here or in ipc.ts — keep where it makes sense
-ipcMain.handle('save-segment', async (_, buffers: { video: Uint8Array, audio: Uint8Array }, suggestedName?: string) => {
-  const filePath = await saveSegmentFile(buffers, suggestedName);
-  console.log("save-segment handled", filePath);
+// ipcMain.handle('save-segment', async (_, buffers: { video: Uint8Array, audio: Uint8Array }, suggestedName?: string) => {
+//   const filePath = await saveSegmentFile(buffers, suggestedName);
+//   console.log("save-segment handled", filePath);
 
-  // open trim window after saving
-  if (mainWindow) openTrimWindow(mainWindow, filePath);
+//   // open trim window after saving
+//   if (mainWindow) openTrimWindow(mainWindow, filePath);
 
-  return filePath;
-});
+//   return filePath;
+// });
+let pythonProcess: ChildProcessWithoutNullStreams | null = null;
+ipcMain.handle('recording:started', async () => {
+    await startRecording()
+    hideWindowCompletely()
 
-  ipcMain.handle('recording:started', async () => {
-    hideWindowCompletely();
+    const scriptPath = is.dev
+  ? join(__dirname, "../../resources/python/mouse_tracker.py") // dev mode
+  : join(process.resourcesPath, "mouse_tracker.py");           // packaged app
+    console.log("Launching mouse tracker:", scriptPath);
+
+    pythonProcess = spawn("python", ["-u", scriptPath]);
+
+    pythonProcess.stdout.on("data", (data) => {
+      const msg = data.toString().trim();
+      console.log("PYTHON DATA:", msg);
+      if (msg.startsWith("CLICK")) {
+        try {
+          const json = JSON.parse(msg.replace("CLICK ", ""));
+          if (mainWindow) mainWindow.webContents.send("mouse-click-event", json);
+        } catch (err) {
+          console.error("Failed to parse click JSON:", err, msg);
+        }
+      }
+    });
+
+    pythonProcess.on("error", (err) => {
+      console.error("Failed to start Python:", err);
+    });
+
+    pythonProcess.on("exit", (code, signal) => {
+      console.log("Python exited", { code, signal });
+    });
+
   })
+ 
 
 
   app.on('activate', () => {

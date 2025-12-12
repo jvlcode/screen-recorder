@@ -27,78 +27,78 @@ function App(): React.JSX.Element {
   const startRecording = async () => {
     try {
       // Step 1: get desktop sources
-      const sources = await window.api.getSources({ types: ['screen'] })
-      const selectedSource = sources[0]
-      console.log(sources);
+      // const sources = await window.api.getSources({ types: ['screen'] })
+      // const selectedSource = sources[0]
+      // console.log(sources);
 
       // Step 2: build constraints for desktop video
-      const desktopConstraints: MediaStreamConstraints = {
-        audio: false,
-        video: {
-        mandatory: {
-          chromeMediaSource: 'desktop',
-          chromeMediaSourceId: selectedSource.id,
-           maxFrameRate: 30,   
-           minFrameRate: 30    // (optional)// <-- add this
-        }
-      } as any// TS
-      }
+      // const desktopConstraints: MediaStreamConstraints = {
+      //   audio: false,
+      //   video: {
+      //   mandatory: {
+      //     chromeMediaSource: 'desktop',
+      //     chromeMediaSourceId: selectedSource.id,
+      //      maxFrameRate: 30,   
+      //      minFrameRate: 30    // (optional)// <-- add this
+      //   }
+      // } as any// TS
+      // }
 
       // Step 3: get desktop stream
-      const desktopStream = await navigator.mediaDevices.getUserMedia(desktopConstraints)
+      // const desktopStream = await navigator.mediaDevices.getUserMedia(desktopConstraints)
 
       // Step 4: get microphone stream separately
-      const micStream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          sampleRate: 48000,
-          channelCount: 2,
-          echoCancellation: false,
-          noiseSuppression: false,
-          autoGainControl: false
-        }
-      })
+      // const micStream = await navigator.mediaDevices.getUserMedia({
+      //   audio: {
+      //     sampleRate: 48000,
+      //     channelCount: 2,
+      //     echoCancellation: false,
+      //     noiseSuppression: false,
+      //     autoGainControl: false
+      //   }
+      // })
 
       // Step 5: setup desktop recorder
-      let mimeType = 'video/webm; codecs=h264'
-      if (!MediaRecorder.isTypeSupported(mimeType)) mimeType = 'video/mp4; codecs=h264'
+      // let mimeType = 'video/webm; codecs=h264'
+      // if (!MediaRecorder.isTypeSupported(mimeType)) mimeType = 'video/mp4; codecs=h264'
 
-      const desktopRecorder = new MediaRecorder(desktopStream, {
-        mimeType,
-        audioBitsPerSecond: 328000,
-        videoBitsPerSecond: 6000000
-      })
-      const desktopChunks: BlobPart[] = []
-      desktopRecorder.ondataavailable = (e) => desktopChunks.push(e.data)
+      // const desktopRecorder = new MediaRecorder(desktopStream, {
+      //   mimeType,
+      //   audioBitsPerSecond: 328000,
+      //   videoBitsPerSecond: 6000000
+      // })
+      // const desktopChunks: BlobPart[] = []
+      // desktopRecorder.ondataavailable = (e) => desktopChunks.push(e.data)
 
       // Step 6: setup microphone recorder
-      const micRecorder = new MediaRecorder(micStream, {
-        mimeType: 'audio/webm',
-       audioBitsPerSecond: 320000
-      })
-      const micChunks: BlobPart[] = []
-      micRecorder.ondataavailable = (e) => micChunks.push(e.data)
+      // const micRecorder = new MediaRecorder(micStream, {
+      //   mimeType: 'audio/webm',
+      //  audioBitsPerSecond: 320000
+      // })
+      // const micChunks: BlobPart[] = []
+      // micRecorder.ondataavailable = (e) => micChunks.push(e.data)
 
       // Step 7: on stop, send both blobs together
-      const onStop = async () => {
-        const desktopBlob = new Blob(desktopChunks, { type: 'video/webm' })
-        const micBlob = new Blob(micChunks, { type: 'audio/webm' })
+      // const onStop = async () => {
+      //   const desktopBlob = new Blob(desktopChunks, { type: 'video/webm' })
+      //   const micBlob = new Blob(micChunks, { type: 'audio/webm' })
 
-        const desktopBuffer = new Uint8Array(await desktopBlob.arrayBuffer())
-        const micBuffer = new Uint8Array(await micBlob.arrayBuffer())
+      //   const desktopBuffer = new Uint8Array(await desktopBlob.arrayBuffer())
+      //   const micBuffer = new Uint8Array(await micBlob.arrayBuffer())
 
-        // send both in one IPC call
-        await window.api.invoke('save-segment', { video: desktopBuffer, audio: micBuffer })
-      }
+      //   // send both in one IPC call
+      //   await window.api.invoke('save-segment', { video: desktopBuffer, audio: micBuffer })
+      // }
 
-      desktopRecorder.onstop = onStop
-      micRecorder.onstop = onStop
+      // desktopRecorder.onstop = onStop
+      // micRecorder.onstop = onStop
 
       // Step 8: start both
-      desktopRecorder.start()
-      micRecorder.start()
+      // desktopRecorder.start()
+      // micRecorder.start()
 
-      mediaRecorderRef.current = desktopRecorder
-      micRecorderRef.current = micRecorder
+      // mediaRecorderRef.current = desktopRecorder
+      // micRecorderRef.current = micRecorder
 
       setRecording(true)
       window.api.invoke('recording:started')
@@ -110,8 +110,8 @@ function App(): React.JSX.Element {
   // Stop recording both
   const stopRecording = () => {
     console.log("recording:stopped")
-    mediaRecorderRef.current?.stop()
-    micRecorderRef.current?.stop()
+    // mediaRecorderRef.current?.stop()
+    // micRecorderRef.current?.stop()
     setRecording(false)
   }
 
