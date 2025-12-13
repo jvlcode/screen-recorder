@@ -6,3 +6,4 @@ out
 *.log*
 /segments
 /compilations
+resources/python/clicks.json

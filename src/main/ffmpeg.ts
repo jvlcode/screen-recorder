@@ -15,198 +15,257 @@ let videoFile: string | null = null;
 let audioFile: string | null = null;
 
 export function startRecordingSeparate(micName = "Microphone (2- HyperX SoloCast)") {
-if (videoProc || audioProc) throw new Error("Recording already in progress");
+	if (videoProc || audioProc) throw new Error("Recording already in progress");
 
-videoFile = path.join(segmentsDir, `video_${Date.now()}_${uuidv4()}.mp4`);
-audioFile = path.join(segmentsDir, `audio_${Date.now()}_${uuidv4()}.wav`);
+	videoFile = path.join(segmentsDir, `video_${Date.now()}_${uuidv4()}.mp4`);
+	audioFile = path.join(segmentsDir, `audio_${Date.now()}_${uuidv4()}.wav`);
 
-if (!ffmpegPath) throw new Error("FFmpeg binary not found");
+	if (!ffmpegPath) throw new Error("FFmpeg binary not found");
 
-// Video process
-const videoArgs = [
-"-y",
-"-f", "gdigrab",          // Windows desktop capture
-"-framerate", "30",
-"-probesize", "50M",
-"-analyzeduration", "100M",
-"-i", "desktop",
-"-c:v", "libx264",        // CPU encoder
-"-preset", "fast",        // balance speed/quality
-"-crf", "18",             // high quality
-"-g", "30",               // keyframe every second
-"-pix_fmt", "yuv420p",
-videoFile,
-];
-videoProc = spawn(ffmpegPath, videoArgs);
+	// Video process
+	const videoArgs = [
+		"-y",
+		"-f", "gdigrab",          // Windows desktop capture
+		"-framerate", "30",
+		"-probesize", "50M",
+		"-analyzeduration", "100M",
+		"-i", "desktop",
+		"-c:v", "libx264",        // CPU encoder
+		"-preset", "fast",        // balance speed/quality
+		"-crf", "18",             // high quality
+		"-g", "30",               // keyframe every second
+		"-pix_fmt", "yuv420p",
+		videoFile,
+	];
+	videoProc = spawn(ffmpegPath, videoArgs);
 
-videoProc.stderr.on("data", (data) => {
-    console.log("[video ffmpeg]", data.toString());
-});
+	videoProc.stderr.on("data", (data) => {
+		console.log("[video ffmpeg]", data.toString());
+	});
 
-// Audio process
-const audioArgs = [
-    "-y",
-    "-f", "dshow",
-    "-i", `audio=${micName}`,
-    "-c:a", "pcm_s16le",
-    "-ar", "48000",
-    "-ac", "2",
-    audioFile,
-];
-audioProc = spawn(ffmpegPath, audioArgs);
+	// Audio process
+	const audioArgs = [
+		"-y",
+		"-f", "dshow",
+		"-i", `audio=${micName}`,
+		"-c:a", "pcm_s16le",
+		"-ar", "48000",
+		"-ac", "2",
+		audioFile,
+	];
+	audioProc = spawn(ffmpegPath, audioArgs);
 
-audioProc.stderr.on("data", (data) => {
-    console.log("[audio ffmpeg]", data.toString());
-});
+	audioProc.stderr.on("data", (data) => {
+		console.log("[audio ffmpeg]", data.toString());
+	});
 
-console.log("Recording started:", { videoFile, audioFile });
+	console.log("Recording started:", { videoFile, audioFile });
 }
 
+// 1️⃣ Declare module-level variables
 let recordProc: ReturnType<typeof spawn> | null = null;
-let recordFile: string|null;
+let recordFile: string | null = null;
+let recordingStartEpochMs: number | null = null;
 
-export function startRecording(micName = "Microphone (2- HyperX SoloCast)") {
-  if (recordProc) throw new Error("Recording already in progress");
+export function startRecording(micName = "Microphone (5- HyperX SoloCast)") {
+	if (recordProc) throw new Error("Recording already in progress");
 
-  recordFile = path.join(process.cwd(), "segments", `record_${Date.now()}_${uuidv4()}.mp4`);
+	// 2️⃣ Set recording start time first
+	recordingStartEpochMs = Date.now();
 
-  if (!ffmpegPath) throw new Error("FFmpeg binary not found");
+	// 3️⃣ Assign recordFile once
+	recordFile = path.join(
+		process.cwd(),
+		"segments",
+		`record_${recordingStartEpochMs}_${uuidv4()}.mp4`
+	);
 
-const args = [
-  "-y",
+	if (!ffmpegPath) throw new Error("FFmpeg binary not found");
 
-  // Prevent frame drops
-  "-thread_queue_size", "1024",
+	// 4️⃣ Save JSON sidecar
+	const metaFile = recordFile.replace(".mp4", ".json");
+	const metadata = {
+		videoFile: recordFile,
+		startEpochMs: recordingStartEpochMs,
+		clicks: []
+	};
+	fs.writeFileSync(metaFile, JSON.stringify(metadata, null, 2));
+	console.log("Metadata saved:", metaFile);
 
-  // ---- Video Input ----
-  "-f", "gdigrab",   
-  "-draw_mouse", "1",
-  "-framerate", "30",
-  "-i", "desktop",
+	// 5️⃣ FFmpeg args
+	const args = [
+		"-y",
+		"-thread_queue_size", "1024",
+		"-f", "gdigrab",
+		"-draw_mouse", "1",
+		"-framerate", "30",
+		"-i", "desktop",
+		"-thread_queue_size", "1024",
+		"-f", "dshow",
+		"-i", `audio=${micName}`,
+		"-map", "0:v:0",
+		"-map", "1:a:0",
+		"-c:v", "libx264",
+		"-preset", "fast",          // smoother compression
+		"-crf", "14",               // balanced quality
+		"-pix_fmt", "yuv420p",
+		"-g", "30",                 // GOP = 1 second
+		"-sc_threshold", "0",       // stable frame cadence
+		"-vsync", "cfr",
+		"-r", "30",
+		"-c:a", "aac",
+		"-b:a", "192k",
+		"-ar", "44100",
+		"-async", "1",
+		"-movflags", "+faststart",
+		recordFile
+	];
 
-  // ---- Audio Input ----
-  "-thread_queue_size", "1024",
-  "-f", "dshow",
-  "-i", `audio=${micName}`,
+	// 6️⃣ Spawn FFmpeg
+	recordProc = spawn(ffmpegPath, args);
+	if (recordProc && recordProc.stderr) {
+		recordProc.stderr.on("data", (data) => console.log("[record ffmpeg]", data.toString()));
+	}
 
-  // ---- Mapping ----
-  "-map", "0:v:0",
-  "-map", "1:a:0",
+	// 7️⃣ Close handler: safe check and delay
+	recordProc.on("close", (code) => {
+		console.log("Recording stopped with code", code);
+		recordProc = null;
 
-  // ---- Video Encoding ----
-  "-c:v", "libx264",
-  "-preset", "veryfast",     // smoother than ultrafast
-  "-crf", "14",              // << ULTRA QUALITY (near lossless)
-  "-pix_fmt", "yuv420p",
-  "-g", "60",                // keyframe = 2 seconds (for 30fps)
-  "-vsync", "cfr",           // << constant framerate
-  "-r", "30",                // << enforce output 30fps
+	});
 
-  // ---- Audio Encoding ----
-  "-c:a", "aac",
-  "-b:a", "320k",            // high quality audio
-  "-ar", "48000",
-
-  // ---- Output ----
-  "-movflags", "+faststart",
-  recordFile
-];
-
-
-  recordProc = spawn(ffmpegPath, args);
-
-if (recordProc && recordProc.stderr) {
-  recordProc.stderr.on("data", (data) => {
-    console.log("[record ffmpeg]", data.toString());
-  });
+	console.log("Recording started:", recordFile);
 }
 
-  recordProc.on("close", (code) => {
-    console.log("Recording stopped with code", code);
-    recordProc = null;
-  });
 
-  console.log("Recording started:", { recordFile });
+function mergeClicksIntoMeta(recordFile: string) {
+	try {
+		// 1️⃣ Path to clicks.json (Python resources folder)
+		const clicksFile = path.join(process.cwd(), "resources", "python", "clicks.json");
+
+		if (!fs.existsSync(clicksFile)) {
+			console.warn("No clicks.json found at", clicksFile);
+			return;
+		}
+
+		// 2️⃣ Read clicks.json
+		const clicksData: any[] = JSON.parse(fs.readFileSync(clicksFile, "utf-8"));
+
+		// 3️⃣ Path to meta.json (sidecar JSON created with MP4)
+		const metaFile = recordFile.replace(".mp4", ".json");
+		if (!fs.existsSync(metaFile)) {
+			console.warn("No meta.json found at", metaFile);
+			return;
+		}
+
+		const metadata = JSON.parse(fs.readFileSync(metaFile, "utf-8"));
+
+		// 4️⃣ Convert clicks to video-relative time and push
+		clicksData.forEach((click) => {
+			// Assuming click has "epochMs" field
+			metadata.clicks.push({
+				x: click.x,
+				y: click.y,
+				button: click.button,
+				timeMs: click.timeMs - metadata.startEpochMs
+			});
+		});
+
+		// 5️⃣ Save updated metadata
+		fs.writeFileSync(metaFile, JSON.stringify(metadata, null, 2));
+		console.log(`Merged ${clicksData.length} clicks into meta JSON.`);
+	} catch (err) {
+		console.error("Error merging clicks into meta JSON:", err);
+	}
 }
+
 
 export async function stopRecording(): Promise<string> {
-  if (!recordProc || !recordFile) throw new Error("No recording in progress");
+	if (!recordProc || !recordFile) throw new Error("No recording in progress");
 
-  const proc = recordProc;
-  const filePath = recordFile;
+	const proc = recordProc;
+	const filePath = recordFile;
 
-  return new Promise<string>((resolve, reject) => {
-    proc.on("exit", (code, signal) => {
-      recordProc = null;
-      recordFile = null;
+	return new Promise<string>((resolve, reject) => {
+		proc.on("exit", (code, signal) => {
+			recordProc = null;
+			recordFile = null;
 
-      if (code === 0) resolve(filePath);
-      else if (signal) reject(new Error(`ffmpeg terminated by signal ${signal}`));
-      else reject(new Error(`ffmpeg exited with code ${code}`));
-    });
+			if (code === 0) resolve(filePath);
+			else if (signal) reject(new Error(`ffmpeg terminated by signal ${signal}`));
+			else reject(new Error(`ffmpeg exited with code ${code}`));
+		});
 
-    try {
-      proc.stdin?.write("q\n"); // graceful quit
-    } catch {
-      proc.kill("SIGINT"); // fallback
-    }
-  });
+		try {
+			proc.stdin?.write("q\n"); // graceful quit
+
+			// ✅ Delay slightly to ensure clicks.json is written
+			if (recordFile) {
+				console.log("recordFile exists, merging clicks after delay:", recordFile);
+				setTimeout(() => mergeClicksIntoMeta(recordFile!), 100); // 100ms delay
+			} else {
+				console.warn("recordFile is null, cannot merge clicks");
+			}
+		} catch {
+			proc.kill("SIGINT"); // fallback
+		}
+	});
 }
 
 export async function stopRecordingAndMerge(): Promise<string> {
-  if (!videoProc || !audioProc || !videoFile || !audioFile)
-    throw new Error("No recording in progress");
+	if (!videoProc || !audioProc || !videoFile || !audioFile)
+		throw new Error("No recording in progress");
 
-  return new Promise<string>((resolve, reject) => {
-    let closedCount = 0;
+	return new Promise<string>((resolve, reject) => {
+		let closedCount = 0;
 
-    const checkDone = async () => {
-      closedCount++;
-      if (closedCount === 2) {
-        try {
-          const mergedFile = await saveSegmentFile({
-            video: new Uint8Array(fs.readFileSync(videoFile!)),
-            audio: new Uint8Array(fs.readFileSync(audioFile!)),
-          });
+		const checkDone = async () => {
+			closedCount++;
+			if (closedCount === 2) {
+				try {
+					const mergedFile = await saveSegmentFile({
+						video: new Uint8Array(fs.readFileSync(videoFile!)),
+						audio: new Uint8Array(fs.readFileSync(audioFile!)),
+					});
 
-          fs.unlinkSync(videoFile!);
-          fs.unlinkSync(audioFile!);
+					fs.unlinkSync(videoFile!);
+					fs.unlinkSync(audioFile!);
 
-          videoProc = null;
-          audioProc = null;
-          videoFile = null;
-          audioFile = null;
+					videoProc = null;
+					audioProc = null;
+					videoFile = null;
+					audioFile = null;
 
-          resolve(mergedFile);
-        } catch (err) {
-          reject(err);
-        }
-      }
-    };
+					resolve(mergedFile);
+				} catch (err) {
+					reject(err);
+				}
+			}
+		};
 
-    videoProc!.on("close", checkDone);
-    audioProc!.on("close", checkDone);
+		videoProc!.on("close", checkDone);
+		audioProc!.on("close", checkDone);
 
-    // Try stdin 'q' first
-    try {
-      videoProc!.stdin.write("q\n");
-      audioProc!.stdin.write("q\n");
+		// Try stdin 'q' first
+		try {
+			videoProc!.stdin.write("q\n");
+			audioProc!.stdin.write("q\n");
 
-      // Fallback: if still alive after 1s, send SIGINT
-      setTimeout(() => {
-        if (videoProc) {
-          console.log("videoProc still running, sending SIGINT");
-          videoProc.kill("SIGINT");
-        }
-        if (audioProc) {
-          console.log("audioProc still running, sending SIGINT");
-          audioProc.kill("SIGINT");
-        }
-      }, 1000);
-    } catch (err) {
-      // If stdin fails, kill immediately
-      videoProc!.kill("SIGINT");
-      audioProc!.kill("SIGINT");
-    }
-  });
+			// Fallback: if still alive after 1s, send SIGINT
+			setTimeout(() => {
+				if (videoProc) {
+					console.log("videoProc still running, sending SIGINT");
+					videoProc.kill("SIGINT");
+				}
+				if (audioProc) {
+					console.log("audioProc still running, sending SIGINT");
+					audioProc.kill("SIGINT");
+				}
+			}, 1000);
+		} catch (err) {
+			// If stdin fails, kill immediately
+			videoProc!.kill("SIGINT");
+			audioProc!.kill("SIGINT");
+		}
+	});
 }

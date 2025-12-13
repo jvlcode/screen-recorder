@@ -1,9 +1,8 @@
 import fs from 'fs'
 import path from 'path'
 import { v4 as uuidv4 } from 'uuid'
-import { ChildProcess, spawn } from 'child_process'
+import {spawn } from 'child_process'
 import ffmpegPath from 'ffmpeg-static'
-import { fileURLToPath } from 'url'
 
 const segmentsDir = path.join(process.cwd(), 'segments')
 if (!fs.existsSync(segmentsDir)) fs.mkdirSync(segmentsDir)
@@ -69,97 +68,7 @@ const args = [
   return filePath
 }
 
-function buildRippleFilters(clicks: any[]): string {
-  const filters: string[] = [];
 
-  // Debug marker
-  filters.push(`drawbox=x=50:y=50:w=100:h=100:color=red@0.8:t=fill`);
-
-  // Assume recording start = first click timestamp
-  const recordingStartEpoch = clicks[0].ts;
-
-  clicks.forEach((c) => {
-    const relTime = c.ts - recordingStartEpoch; // epoch → relative
-    if (relTime < 0) return;
-
-    filters.push(
-      `drawbox=x=${c.x}:y=${c.y}:w=40:h=40:color=yellow@0.8:t=fill:enable='between(t,${relTime},${relTime + 0.3})'`
-    );
-  });
-
-  return filters.join(",");
-}
-export function trimSegmentFile(
-  filePath: string,
-  startSec: number,
-  endSec: number,
-): Promise<void> {
-
-  return new Promise((resolve, reject) => {
-    try {
-      if (!filePath) return reject(new Error("No file path provided"));
-      if (!ffmpegPath) return reject(new Error("ffmpeg binary not found"));
-// Load clicks.json from resources/python
-      const clicksFile = path.join(process.cwd(), "resources", "python", "clicks.json");
-      const clicks = JSON.parse(fs.readFileSync(clicksFile, "utf-8"));
-
-      let localPath = filePath;
-      if (filePath.startsWith("file://")) {
-        localPath = fileURLToPath(filePath);
-      }
-
-      const tempPath = path.join(
-        path.dirname(localPath),
-        path.basename(localPath, path.extname(localPath)) + ".trimmed.mp4"
-      );
-
-      // Load clicks.json
-      const vf = buildRippleFilters(clicks);
-
-      console.log("Trimming file with ripple overlay", {
-        filePath,
-        startSec,
-        endSec,
-        vf,
-      });
-
-      const args = [
-        "-ss",
-        `${startSec}`,
-        "-to",
-        `${endSec}`,
-        "-i",
-        localPath,
-        "-vf",
-        vf,
-        "-c:v",
-        "libx264",
-        "-preset",
-        "fast",
-        "-crf",
-        "23",
-        "-c:a",
-        "copy",
-        tempPath,
-      ];
-
-      const proc = spawn(ffmpegPath as string, args, { stdio: "inherit" });
-
-      proc.on("error", (e) => reject(e));
-      proc.on("close", (code) => {
-        if (code === 0) {
-          fs.unlinkSync(localPath);
-          fs.renameSync(tempPath, localPath);
-          resolve();
-        } else {
-          reject(new Error(`ffmpeg exited with ${code}`));
-        }
-      });
-    } catch (err) {
-      reject(err);
-    }
-  });
-}
 
 const compilationsDir = path.join(process.cwd(), 'compilations')
 
@@ -188,14 +97,6 @@ async function getNextCompilationFile(): Promise<string> {
   return path.join(compilationsDir, `compilation_${next}.mp4`)
 }
 
-// Clear segments folder
-async function clearSegmentsFolder() {
-  if (!fs.existsSync(segmentsDir)) return
-  const files = await fs.promises.readdir(segmentsDir)
-  for (const f of files) {
-    await fs.promises.unlink(path.join(segmentsDir, f))
-  }
-}
 
 export async function concatSegments(): Promise<string> {
   return new Promise(async (resolve, reject) => {

@@ -27,7 +27,7 @@ def on_click(x, y, button, pressed):
             "x": x,
             "y": y,
             "button": str(button),
-            "ts": time.time()
+            "timeMs": int(time.time() * 1000)
         }
         clicks.append(data)
 

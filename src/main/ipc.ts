@@ -1,6 +1,7 @@
 import { ipcMain, desktopCapturer, BrowserWindow } from 'electron'
-import { trimSegmentFile, concatSegments } from './recorder'
+import { concatSegments } from './recorder'
 import { hideWindowCompletely } from '.'
+import { trimSegmentFile } from './trim'
 
 let _mainWindow: BrowserWindow | null = null
 

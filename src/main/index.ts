@@ -3,7 +3,7 @@ import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { registerIpcHandlers, setMainWindowForIpc } from './ipc'
-import { startRecording, startRecordingSeparate, stopRecording, stopRecordingAndMerge } from './ffmpeg'
+import { startRecording,stopRecording} from './ffmpeg'
 import { ChildProcessWithoutNullStreams, spawn } from 'child_process'
 
 let mainWindow: BrowserWindow | null = null
