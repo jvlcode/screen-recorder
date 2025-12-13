@@ -1,72 +1,8 @@
-import fs from 'fs'
-import path from 'path'
-import { v4 as uuidv4 } from 'uuid'
-import {spawn } from 'child_process'
-import ffmpegPath from 'ffmpeg-static'
-
-const segmentsDir = path.join(process.cwd(), 'segments')
-if (!fs.existsSync(segmentsDir)) fs.mkdirSync(segmentsDir)
-
-export async function saveSegmentFile(buffers: { video: Uint8Array, audio: Uint8Array }, suggestedName?: string) {
-  const filename = suggestedName || `segment_${Date.now()}_${uuidv4()}.mp4`
-  const filePath = path.join(segmentsDir, filename)
-
-  // Create temporary files for ffmpeg merging
-  const tmpVideo = path.join(segmentsDir, `tmp_video_${Date.now()}.webm`)
-  const tmpAudio = path.join(segmentsDir, `tmp_audio_${Date.now()}.webm`)
-
-  await fs.promises.writeFile(tmpVideo, Buffer.from(buffers.video))
-  await fs.promises.writeFile(tmpAudio, Buffer.from(buffers.audio))
-
-  // Merge using ffmpeg (copy video codec, encode audio to opus)
-  await new Promise<void>((resolve, reject) => {
-const args = [
-  "-y",
-  "-i", tmpVideo,
-  "-i", tmpAudio,
-
-  // Explicit mapping
-  "-map", "0:v:0",
-  "-map", "1:a:0",
-
-  // VIDEO
-  "-c:v", "libx264",
-  "-preset", "fast",
-  "-crf", "18",
-  "-g", "30",
-  "-keyint_min", "30",
-
-  // AUDIO
-  "-c:a", "aac",
-  "-b:a", "320k",
-  "-af", "aresample=async=1",
-
-  // Sync & fast start
-  "-shortest",
-  "-movflags", "+faststart",
-
-  filePath
-];
-
-    const proc = spawn(ffmpegPath as string, args, { stdio: 'inherit' })
-
-    proc.on('error', (err) => reject(err))
-    proc.on('close', async (code) => {
-      try {
-        // Cleanup temp files
-        fs.unlinkSync(tmpVideo)
-        fs.unlinkSync(tmpAudio)
-
-        if (code === 0) resolve()
-        else reject(new Error(`ffmpeg exited with code ${code}`))
-      } catch (err) {
-        reject(err)
-      }
-    })
-  })
-
-  return filePath
-}
+import path from "path";
+import fs from "fs";
+import { spawn } from "child_process";
+import ffmpegPath from "ffmpeg-static";
+import { segmentsDir } from "../utils/segments";
 
 
 
@@ -125,10 +61,19 @@ export async function concatSegments(): Promise<string> {
       await fs.promises.mkdir(outFolder, { recursive: true });
 
       const args = [
+        "-y",
         "-f", "concat",
         "-safe", "0",
         "-i", listFile,
-        "-c", "copy",
+        "-c:v", "libx264",      // re-encode for smooth joins
+        "-preset", "fast",
+        "-crf", "14",           // same quality as your recording
+        "-pix_fmt", "yuv420p",
+        "-r", "30",             // keep framerate consistent
+        "-c:a", "aac",
+        "-b:a", "320k",
+        "-ar", "44100",
+        "-movflags", "+faststart",
         outFile
       ];
 
@@ -142,7 +87,7 @@ export async function concatSegments(): Promise<string> {
 
       proc.on("error", err => reject(err));
 
-     proc.on("close", async code => {
+      proc.on("close", async code => {
         if (code === 0) {
           setTimeout(async () => {
             try {
@@ -165,5 +110,3 @@ export async function concatSegments(): Promise<string> {
     }
   });
 }
-
-

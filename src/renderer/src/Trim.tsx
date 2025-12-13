@@ -1,112 +1,188 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 
 export default function Trim(): React.JSX.Element {
   const [file, setFile] = useState<string | null>(null)
+  const [duration, setDuration] = useState(0)
   const [end, setEnd] = useState(0)
-  const videoRef = useRef<HTMLVideoElement>(null)
   const [finalizing, setFinalizing] = useState(false)
 
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const seekingFromSlider = useRef(false)
+
+  /* IPC */
   useEffect(() => {
     const handler = (filePath: string) => {
+      filePath = filePath.replace(/\\/g, '/')
       setFile(filePath)
+      setDuration(0)
       setEnd(0)
     }
-    window.api.on('load-segment', handler)
-    return () => window.api.removeListener('load-segment', handler)
+    window.api.on('recording:stopped', handler)
+    return () => window.api.removeListener('recording:stopped', handler)
   }, [])
 
+  /* Video */
   const handleLoadedMetadata = () => {
-    if (videoRef.current) {
-      setEnd(videoRef.current.duration)
-    }
+    if (!videoRef.current) return
+    setDuration(videoRef.current.duration)
+    setEnd(videoRef.current.duration)
   }
 
-  const trimSegment = async () => {
-    if (!file || !videoRef.current) return;
+  const seekVideo = (t: number) => {
+    const v = videoRef.current
+    if (!v) return
+    seekingFromSlider.current = true
+    v.currentTime = Math.max(0, Math.min(t, duration))
+    v.pause()
+    setTimeout(() => (seekingFromSlider.current = false), 0)
+  }
 
-    // Perform trimming in main process
-    await window.api.invoke("trim-segment", {
+  const syncSliderWithVideo = () => {
+    const v = videoRef.current
+    if (!v || seekingFromSlider.current) return
+    setEnd(v.currentTime)
+  }
+
+  /* Actions */
+  const trimSegment = async () => {
+    if (!file) return
+    await window.api.invoke('trim-segment', {
       filePath: file,
       startSec: 0,
       endSec: end
-    });
-    setFile(null);
-    setEnd(0);
-  };
-
+    })
+    setFile(null)
+  }
 
   const finalizeVideo = async () => {
     setFinalizing(true)
     try {
-      // Stop recording if active
-      // await window.api.invoke('stop-recording')
-
-      // Concatenate all segments
-      const finalPath = await window.api.invoke('finalize')
-      alert(`Final video saved at:\n${finalPath}`)
+      const out = await window.api.invoke('finalize')
+      alert(`Saved at:\n${out}`)
       window.close()
-    } catch (err) {
-      console.error(err)
-      alert('Error finalizing video')
+    } catch {
+      alert('Finalize failed')
     } finally {
       setFinalizing(false)
     }
   }
 
+  /* UI */
   return (
-    <div style={{
-      padding: 20,
-      maxWidth: 800,
-      margin: '0 auto',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      overflowY: 'auto',
-      height: '100vh',
-      boxSizing: 'border-box'
-    }}>
-      <h2>Trim Last Part</h2>
+    <div
+      style={{
+        height: '100vh',
+        display: 'flex',
+        flexDirection: 'column',
+        padding: 16,
+        boxSizing: 'border-box'
+      }}
+    >
+      <h2 style={{ marginBottom: 8 }}>Trim Last Part</h2>
 
-      {file ? (
+      {!file && <p>Waiting for segment…</p>}
+
+      {file && (
         <>
-          <video
-            ref={videoRef}
-            src={`file://${file}`}
-            controls
-            onLoadedMetadata={handleLoadedMetadata}
+          {/* PREVIEW */}
+          <div
             style={{
-              width: '100%',
-              maxHeight: 400,
-              border: '1px solid #ccc',
-              borderRadius: 6,
-              marginBottom: 20,
-              objectFit: 'contain'
+              flex: '1 1 auto',
+              minHeight: 0,
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              marginBottom: 10
             }}
-          />
-
-          <div style={{ width: '100%', marginBottom: 20 }}>
-            <label style={{ display: 'block', marginBottom: 10 }}>
-              End: {end.toFixed(3)}s
-            </label>
-            <input
-              type="range"
-              min={0}
-              max={videoRef.current?.duration || 0}
-              step={0.001}
-              value={end}
-              onChange={(e) => {
-                const val = Number(e.target.value)
-                setEnd(val)
-                if (videoRef.current) videoRef.current.currentTime = val
+          >
+            <video
+              ref={videoRef}
+              src={`file://${file}`}
+              controls
+              preload="auto"
+              onLoadedMetadata={handleLoadedMetadata}
+              onTimeUpdate={syncSliderWithVideo}
+              onPause={syncSliderWithVideo}
+              style={{
+                maxHeight: '65vh',
+                maxWidth: '100%',
+                background: '#000',
+                borderRadius: 6
               }}
-              style={{ width: '100%' }}
             />
           </div>
 
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          {/* TIMELINE */}
+          <div>
+            <div
+              style={{
+                position: 'relative',
+                height: 30,
+                background: '#1e1e1e',
+                borderRadius: 6,
+                overflow: 'hidden'
+              }}
+            >
+              <div
+                style={{
+                  position: 'absolute',
+                  left: 0,
+                  top: 0,
+                  height: '100%',
+                  width: `${(end / (duration || 1)) * 100}%`,
+                  background: 'rgba(76,175,80,0.35)'
+                }}
+              />
+              <div
+                style={{
+                  position: 'absolute',
+                  left: `${(end / (duration || 1)) * 100}%`,
+                  top: 0,
+                  width: 2,
+                  height: '100%',
+                  background: '#fff'
+                }}
+              />
+            </div>
+
+            <input
+              type="range"
+              min={0}
+              max={duration}
+              step={1 / 30}
+              value={end}
+              onChange={(e) => {
+                const t = Number(e.target.value)
+                setEnd(t)
+                seekVideo(t)
+              }}
+              style={{ width: '100%', marginTop: 6 }}
+            />
+
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                fontSize: 12,
+                color: '#777',
+                marginBottom: 10
+              }}
+            >
+              <span>0.00s</span>
+              <span>Trim end: {end.toFixed(2)}s</span>
+              <span>{duration.toFixed(2)}s</span>
+            </div>
+          </div>
+
+          {/* ACTIONS */}
+          <div style={{ display: 'flex', gap: 10 }}>
             <button
               onClick={trimSegment}
-              style={{ padding: '10px 20px', fontSize: 16, borderRadius: 6, cursor: 'pointer' }}
+              style={{
+                padding: '10px 20px',
+                fontSize: 15,
+                borderRadius: 6
+              }}
             >
               Trim & Close
             </button>
@@ -116,20 +192,17 @@ export default function Trim(): React.JSX.Element {
               disabled={finalizing}
               style={{
                 padding: '10px 20px',
-                fontSize: 16,
+                fontSize: 15,
                 borderRadius: 6,
-                cursor: 'pointer',
-                backgroundColor: finalizing ? '#ccc' : '#4caf50',
+                background: finalizing ? '#aaa' : '#4caf50',
                 color: '#fff',
                 border: 'none'
               }}
             >
-              {finalizing ? 'Finalizing...' : 'Compile All Segments'}
+              {finalizing ? 'Finalizing…' : 'Compile All Segments'}
             </button>
           </div>
         </>
-      ) : (
-        <p>Waiting for segment...</p>
       )}
     </div>
   )
