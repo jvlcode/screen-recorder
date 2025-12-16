@@ -5,6 +5,9 @@ import { ffmpegService, FFmpegProcess } from "./ffmpeg.service";
 import { segmentsDir } from "../utils/segments";
 import { spawn } from "child_process";
 import { app } from "electron";
+import { hideMainWindow } from "../windows/main.window";
+import { hideTrimWindow } from "../windows/trim.windows";
+
 
 let recordProc: FFmpegProcess | null = null;
 let recordFile: string | null = null;
@@ -12,9 +15,16 @@ let recordingStartEpochMs: number | null = null;
 
 /* ---------------- START RECORDING ---------------- */
 
-export function startRecording(micName = "Microphone (2- HyperX SoloCast)") {
+export async function startRecording() {
   if (recordProc) throw new Error("Recording already in progress");
-
+// If micName is not provided, try to find automatically
+    const micName = await ffmpegService.getDefaultMic();
+    if (!micName) return console.error("No microphone found");
+    
+  // ✅ restore behavior (correct place)
+  hideMainWindow();
+  hideTrimWindow();
+    
   recordingStartEpochMs = Date.now();
 
   recordFile = path.join(
@@ -78,7 +88,7 @@ export function startRecording(micName = "Microphone (2- HyperX SoloCast)") {
     recordProc = null;
   });
 
-  console.log("Recording started:", recordFile);
+  console.log("Recording started on file:", recordFile);
 }
 
 function mergeClicksIntoMeta(file: string) {
@@ -89,7 +99,7 @@ function mergeClicksIntoMeta(file: string) {
     clicksFile = path.join(process.resourcesPath, 'python', 'clicks.json');
   } else {
     // In dev, point to your local source folder
-    clicksFile = path.join(__dirname, 'resources', 'python', 'clicks.json');
+    clicksFile = path.join(process.cwd(), 'resources', 'python', 'clicks.json');
   }
 
     if (!fs.existsSync(clicksFile)) return;
@@ -154,7 +164,7 @@ export function startMouseTracker() {
     scriptPath = path.join(process.resourcesPath, 'python', 'mouse_tracker.py');
   } else {
     // In dev, point to your local source folder
-    scriptPath = path.join(__dirname, 'resources', 'python', 'mouse_tracker.py');
+    scriptPath = path.join(process.cwd(), 'resources', 'python', 'mouse_tracker.py');
   }
 
 
