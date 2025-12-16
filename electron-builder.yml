@@ -42,5 +42,15 @@ publish:
   provider: generic
   url: https://example.com/auto-updates
 extraResources:
-  - from: resources/python/mouse_tracker.py
+  - from: resources/python/
+    to: python
+    filter:
+      - "**/*"
+
+  - from: node_modules/ffmpeg-static
+    to: ffmpeg
+  - from: node_modules/ffprobe-static/bin/win32/x64/ffprobe.exe
+    to: ffprobe/ffprobe.exe
+  - from: resources/circle.png
     to: .
+    

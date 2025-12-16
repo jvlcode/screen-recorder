@@ -1,8 +1,7 @@
 import path from "path";
 import fs from "fs";
-import { spawn } from "child_process";
-import ffmpegPath from "ffmpeg-static";
 import { segmentsDir } from "../utils/segments";
+import { ffmpegService } from "./ffmpeg.service";
 
 
 
@@ -37,6 +36,7 @@ async function getNextCompilationFile(): Promise<string> {
 export async function concatSegments(): Promise<string> {
     return new Promise(async (resolve, reject) => {
         try {
+            // Collect all mp4 segments
             let files = (await fs.promises.readdir(segmentsDir))
                 .filter(f => f.endsWith(".mp4"))
                 .map(f => path.join(segmentsDir, f))
@@ -47,8 +47,36 @@ export async function concatSegments(): Promise<string> {
                 return reject(new Error("No segments found"));
             }
 
+            // Pre-process each segment: trim first/last 0.15s
+            const cleanedFiles: string[] = [];
+            for (const f of files) {
+                const cleaned = path.join(segmentsDir, "cleaned_" + path.basename(f));
+
+                // Use ffprobe to get duration
+                const duration = await ffmpegService.probeDuration(f);
+                const endSec = duration - 0.15;
+
+                const args = [
+                    "-y",
+                    "-ss", "0.15",          // skip first 0.15s
+                    "-to", `${endSec}`,     // stop 0.15s before end
+                    "-i", f,
+                    "-c", "copy",
+                    cleaned
+                ];
+
+                await new Promise<void>((res, rej) => {
+                    const proc = ffmpegService.spawn(args);
+                    proc.on("error", rej);
+                    proc.on("close", code => code === 0 ? res() : rej(new Error(`ffmpeg exited ${code}`)));
+                });
+
+                cleanedFiles.push(cleaned);
+            }
+
+            // Build concat filelist from cleaned files
             const listFile = path.join(segmentsDir, "filelist.txt");
-            const content = files.map(f => `file '${f.replace(/\\/g, "/")}'`).join("\n");
+            const content = cleanedFiles.map(f => `file '${f.replace(/\\/g, "/")}'`).join("\n");
             await fs.promises.writeFile(listFile, content);
 
             console.log("Concat filelist:\n", content);
@@ -57,7 +85,6 @@ export async function concatSegments(): Promise<string> {
             const outBase = path.basename(outFile, ".mp4");
             const outFolder = path.join(compilationsDir, outBase);
 
-            // ensure folder exists
             await fs.promises.mkdir(outFolder, { recursive: true });
 
             const args = [
@@ -65,19 +92,12 @@ export async function concatSegments(): Promise<string> {
                 "-f", "concat",
                 "-safe", "0",
                 "-i", listFile,
-                "-c:v", "libx264",      // re-encode for smooth joins
-                "-preset", "fast",
-                "-crf", "14",           // same quality as your recording
-                "-pix_fmt", "yuv420p",
-                "-r", "30",             // keep framerate consistent
-                "-c:a", "aac",
-                "-b:a", "320k",
-                "-ar", "44100",
+                "-c", "copy",          // ✅ copy both audio and video streams
                 "-movflags", "+faststart",
                 outFile
             ];
 
-            const proc = spawn(ffmpegPath as string, args);
+            const proc = ffmpegService.spawn(args);
 
             let stderr = "";
             proc.stderr.on("data", d => {
@@ -91,12 +111,13 @@ export async function concatSegments(): Promise<string> {
                 if (code === 0) {
                     setTimeout(async () => {
                         try {
+                            // Move originals + json files into compilation folder
                             for (const f of files) {
                                 const dest = path.join(outFolder, path.basename(f));
                                 await fs.promises.rename(f, dest);
                             }
                             await fs.promises.rename(listFile, path.join(outFolder, "filelist.txt"));
-                            // also handle JSON files
+
                             const jsonFiles = (await fs.promises.readdir(segmentsDir))
                                 .filter(f => f.endsWith(".json"))
                                 .map(f => path.join(segmentsDir, f));
@@ -106,11 +127,16 @@ export async function concatSegments(): Promise<string> {
                                 await fs.promises.rename(jf, dest);
                             }
 
+                            // Optionally delete cleaned files if you don’t want to keep them
+                            for (const cf of cleanedFiles) {
+                                try { await fs.promises.unlink(cf); } catch { }
+                            }
+
                             resolve(outFile);
                         } catch (err) {
                             reject(err);
                         }
-                    }, 500); // wait 0.5s
+                    }, 500);
                 } else {
                     reject(new Error(`ffmpeg exited with code ${code}: ${stderr}`));
                 }

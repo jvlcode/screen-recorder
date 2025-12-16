@@ -6,7 +6,7 @@ const api = {
   invoke: (channel: string, data?: any) => ipcRenderer.invoke(channel, data),
   send: (channel: string, data?: any) => ipcRenderer.send(channel, data),
   on: (channel: string, listener: (...args: any[]) => void) =>
-    ipcRenderer.on(channel, (event, ...args) => listener(...args)),
+    ipcRenderer.on(channel, (_event, ...args) => listener(...args)),
   removeListener: (channel: string, listener: (...args: any[]) => void) =>
     ipcRenderer.removeListener(channel, listener),
   sendClick: (x: number, y: number) => ipcRenderer.send('cursor-click', { x, y }),

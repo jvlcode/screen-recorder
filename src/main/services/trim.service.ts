@@ -1,8 +1,9 @@
 import fs from "fs";
 import path from "path";
-import { spawn } from "child_process";
 import { fileURLToPath } from "url";
 import ffmpegPath from "ffmpeg-static";
+import { ffmpegService } from "./ffmpeg.service";
+import { app } from "electron";
 
 export interface Click {
     x: number;
@@ -47,30 +48,40 @@ function prepareTempPath(filePath: string) {
 }
 
 /* ---------------- FILTER GRAPH ---------------- */
-
 function buildRippleFilterComplex(
     segmentClicks: Click[],
-    rippleDurationMs = RIPPLE_DURATION_MS
+    rippleDurationMs = RIPPLE_DURATION_MS,
+    trimStartMs = 0   // pass in startSec*1000 or 150 if trim=start=0.15
 ) {
-    if (segmentClicks.length === 0)
+    if (segmentClicks.length === 0) {
         return { filter: "", finalLabel: "[0:v]" };
+    }
 
     let filter = "";
-    let last = "[0:v]";
+    filter += `[0:v]setpts=PTS-STARTPTS[v0];`;
+    let last = "[v0]";
+
+    // Split the ripple image once
+    filter += `[1:v]split=${segmentClicks.length}`;
+    segmentClicks.forEach((_, i) => {
+        filter += `[r${i}]`;
+    });
+    filter += `;`;
 
     segmentClicks.forEach((click, i) => {
-        const tStart = (click.timeMs / 1000).toFixed(3);
-        const tEnd = ((click.timeMs + rippleDurationMs) / 1000).toFixed(3);
+        // Adjust click time relative to trimmed segment
+        const adjustedMs = click.timeMs - trimStartMs;
+        if (adjustedMs < 0) return;
 
-        const ripple = `[r${i}]`;
-        const out = `[v${i}]`;
+        const tStart = (adjustedMs / 1000).toFixed(3);
+        const tEnd = ((adjustedMs + rippleDurationMs) / 1000).toFixed(3);
 
-        filter += `[1:v]scale=50:50,format=rgba${ripple};`;
-        filter += `${last}${ripple}overlay=` +
+        filter += `[r${i}]scale=50:50,format=rgba[r${i}f];`;
+        filter += `${last}[r${i}f]overlay=` +
             `x=${click.x}-25:y=${click.y}-25:` +
-            `enable='between(t,${tStart},${tEnd})'${out};`;
+            `enable='between(t,${tStart},${tEnd})'[v${i + 1}];`;
 
-        last = out;
+        last = `[v${i + 1}]`;
     });
 
     return { filter, finalLabel: last };
@@ -91,19 +102,19 @@ function buildFFmpegArgs(
     ];
 
     if (segmentClicks.length > 0) {
-        const ripplePath = path.join(
-            process.cwd(),
-            "resources",
-            "circle.png"
-        );
-
-        if (!fs.existsSync(ripplePath))
-            throw new Error("Ripple image missing");
-
+        
+        const ripplePath =  app.isPackaged ? path.join(process.resourcesPath, "circle.png")
+      : path.join(process.cwd(), "resources", "circle.png");
+      
+        if (!fs.existsSync(ripplePath)) throw new Error("Ripple image missing");
         args.push("-i", ripplePath);
 
+        // Convert trim start to milliseconds
+        // const trimStartMs = 0; // = 150
+
+
         const { filter, finalLabel } =
-            buildRippleFilterComplex(segmentClicks);
+            buildRippleFilterComplex(segmentClicks, RIPPLE_DURATION_MS);
 
         args.push(
             "-filter_complex", filter,
@@ -123,15 +134,14 @@ function buildFFmpegArgs(
     return args;
 }
 
+
 /* ---------------- EXEC ---------------- */
 
 function executeFFmpeg(args: string[], output: string) {
     return new Promise<void>((resolve, reject) => {
         if (!ffmpegPath) throw new Error("ffmpeg binary not found");
 
-        const proc = spawn(ffmpegPath, [...args, output], {
-            stdio: "inherit"
-        });
+        const proc = ffmpegService.spawn([...args, output]);
 
         proc.on("error", reject);
         proc.on("close", code =>
