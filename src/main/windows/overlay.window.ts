@@ -29,7 +29,8 @@ export function createOverlayWindow() {
   });
 
   overlayWindow.setIgnoreMouseEvents(true); // 👈 click-through
-overlayWindow.loadFile(
+  
+ overlayWindow.loadFile(
   path.join(app.getAppPath(), "out/renderer/overlay.html")
 );
    overlayWindow.webContents.once("did-finish-load", () => {

@@ -105,7 +105,7 @@ if (!gotTheLock) {
     }
 
     /* 1️⃣ Register IPC */
-    // registerIpcHandlers();
+    registerIpcHandlers();
     log("IPC handlers registered");
 
     /* 2️⃣ Create main window */
@@ -139,8 +139,8 @@ if (!gotTheLock) {
     // mainWindow.webContents.openDevTools({ mode: "detach" });
 
     /* 4️⃣ Global shortcut: STOP recording */
-    globalShortcut.register("Shift+S", async () => {
-      log("Shift+S pressed");
+    globalShortcut.register("F10", async () => {
+      log("F10 pressed");
 
       if (!mainWindow || mainWindow.isDestroyed()) {
         log("Main window missing");
