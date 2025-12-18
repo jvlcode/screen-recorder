@@ -1,23 +1,22 @@
-export { }
+export {}
 
 declare global {
   interface Window {
     api: {
-      sendClick: (x:any, y: any) => void
-      // IPC invoke
+      sendClick: (x: number, y: number) => void
       invoke: <T = any>(channel: string, data?: any) => Promise<T>
-
-      // Desktop capture (from preload)
       getSources: (opts: Electron.SourcesOptions) => Promise<Electron.DesktopCapturerSource[]>
-
-      // One-way send
       send: (channel: string, data?: any) => void
-
-      // Add listener
       on: (channel: string, listener: (...args: any[]) => void) => void
-
-      // Remove listener
       removeListener: (channel: string, listener: (...args: any[]) => void) => void
+
+      // Drawing & overlay APIs
+      onDrawingToggle: (callback: (...args: any[]) => void) => void
+      onToolSet: (callback: (...args: any[]) => void) => void
+      onDrawingClear: (callback: (...args: any[]) => void) => void
+      onDrawingUndo: (callback: (...args: any[]) => void) => void
+      onCombo: (callback: (...args: any[]) => void) => void
+      sendMouse: (enabled: boolean) => void
     }
 
     electron: {

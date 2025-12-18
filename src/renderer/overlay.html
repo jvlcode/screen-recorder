@@ -1,6 +1,5 @@
 <!DOCTYPE html>
 <html>
-
 <head>
   <style>
     body {
@@ -10,21 +9,27 @@
       font-family: system-ui, sans-serif;
     }
 
+    canvas {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+    }
+
+    #base-layer { z-index: 10; }
+    #preview-layer { z-index: 20; }
+
     #combo {
-      border: solid 2px red;
       position: fixed;
       bottom: 80px;
       right: 40px;
-      /* distance from the right edge */
-      left: auto;
-      /* reset left */
-      transform: none;
-      /* no need to translate */
       background: white;
       color: black;
       padding: 14px 24px;
       border-radius: 12px;
       font-size: 28px;
+      border: 2px solid red;
+      z-index: 1000;
       opacity: 0;
       transition: opacity 0.2s ease, transform 0.2s ease;
     }
@@ -32,29 +37,19 @@
     #combo.show {
       opacity: 1;
       transform: translateY(-6px);
-      /* only vertical movement if you want */
     }
   </style>
 </head>
 
 <body>
+  <canvas id="base-layer"></canvas>
+  <canvas id="preview-layer"></canvas>
   <div id="combo"></div>
 
+  <script type="module" src="./src/keystroke.js"></script>
+  <script type="module" src="./src/drawing.js"></script>
   <script>
-    const { ipcRenderer } = require("electron");
-    const el = document.getElementById("combo");
-    let hideTimer;
-
-    ipcRenderer.on("overlay:combo", (_, combo) => {
-      el.textContent = combo;
-      el.classList.add("show");
-
-      clearTimeout(hideTimer);
-      hideTimer = setTimeout(() => {
-        el.classList.remove("show");
-      }, 3000);
-    });
+    console.log(window,'windos')
   </script>
 </body>
-
 </html>

@@ -1,6 +1,6 @@
 import { is } from "@electron-toolkit/utils";
-import { app, BrowserWindow, screen } from "electron";
-import path from "path";
+import { BrowserWindow, screen } from "electron";
+import { join } from "path";
 
 let overlayWindow: BrowserWindow | null = null;
 
@@ -22,6 +22,7 @@ export function createOverlayWindow() {
     skipTaskbar: true,
     hasShadow: false,
     webPreferences: {
+      preload: join(__dirname, "../preload/index.js"),
       nodeIntegration: true,
       contextIsolation: false,
       webSecurity: false
@@ -29,11 +30,16 @@ export function createOverlayWindow() {
   });
 
   overlayWindow.setIgnoreMouseEvents(true); // 👈 click-through
-  
- overlayWindow.loadFile(
-  path.join(app.getAppPath(), "out/renderer/overlay.html")
-);
-   overlayWindow.webContents.once("did-finish-load", () => {
+
+  if (is.dev) {
+    // Development: use Vite dev server
+    overlayWindow.loadURL(`${process.env.ELECTRON_RENDERER_URL}/overlay.html`)
+  } else {
+    // Production: use built file
+    overlayWindow.loadFile(join(__dirname, 'out/renderer/overlay.html'))
+  }
+
+  overlayWindow.webContents.once("did-finish-load", () => {
     if (is.dev && overlayWindow) {
       overlayWindow.webContents.openDevTools({ mode: "detach" });
     }
@@ -47,6 +53,10 @@ export function showOverlay() {
 
 export function hideOverlay() {
   overlayWindow?.hide();
+}
+
+export function getOverlayWindow() {
+  return overlayWindow;
 }
 
 export function sendOverlayCombo(combo: string) {
