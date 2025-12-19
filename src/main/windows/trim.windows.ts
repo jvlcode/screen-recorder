@@ -24,12 +24,16 @@ export function createTrimWindow(parent: BrowserWindow) {
     },
   });
 
-  const url =
-    is.dev && process.env.ELECTRON_RENDERER_URL
-      ? `${process.env.ELECTRON_RENDERER_URL}#/trim`
-      : `file://${join(__dirname, "../renderer/index.html")}#/trim`;
 
-  trimWindow.loadURL(url);
+  if (is.dev && process.env.ELECTRON_RENDERER_URL) {
+    trimWindow.loadURL(`${process.env.ELECTRON_RENDERER_URL}#/trim`);
+    // trimWindow.webContents.openDevTools({ mode: "detach" });
+  } else {
+    // First resolve the file path
+    const indexPath = join(__dirname, "../renderer/index.html");
+    // Then convert it to a proper file:// URL and append the hash
+    trimWindow.loadURL(`file://${indexPath}#/trim`);
+  }
 
   trimWindow.once("ready-to-show", () => {
     // trimWindow?.show();

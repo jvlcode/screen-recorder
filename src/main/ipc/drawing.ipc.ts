@@ -60,7 +60,7 @@ export function registerGlobalShortcuts() {
   globalShortcut.register("F5", () => {
     console.log("F5 callec")
     drawingEnabled = !drawingEnabled
-    getOverlayWindow()?.setIgnoreMouseEvents(!drawingEnabled, { forward: true })
+    getOverlayWindow()?.setIgnoreMouseEvents(!drawingEnabled)
 
     getOverlayWindow()?.webContents.send(
       "drawing:toggle",

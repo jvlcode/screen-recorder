@@ -1,64 +1,64 @@
-import { is } from "@electron-toolkit/utils";
 import { BrowserWindow, screen } from "electron";
 import { join } from "path";
+import { is } from "@electron-toolkit/utils";
 
 let overlayWindow: BrowserWindow | null = null;
 
 export function createOverlayWindow() {
-  const { width, height } = screen.getPrimaryDisplay().bounds;
+	const { width, height, x, y } = screen.getPrimaryDisplay().bounds;
 
-  overlayWindow = new BrowserWindow({
-    width,
-    height,
-    x: 0,
-    y: 0,
-    transparent: true,
-    frame: false,
-    resizable: false,
-    movable: false,
-    focusable: false,
-    fullscreen: true,
-    alwaysOnTop: true,
-    skipTaskbar: true,
-    hasShadow: false,
-    webPreferences: {
-      preload: join(__dirname, "../preload/index.js"),
-      nodeIntegration: true,
-      contextIsolation: false,
-      webSecurity: false
-    }
-  });
+	overlayWindow = new BrowserWindow({
+		x,
+		y,
+		width,
+		height,
+		transparent: true,
+		frame: false,
+		resizable: false,
+		movable: false,
+		focusable: false,
+		fullscreen: true,
+		alwaysOnTop: true,
+		skipTaskbar: true,
+		hasShadow: false,
+		webPreferences: {
+			preload: join(__dirname, "../preload/index.js"),
+			nodeIntegration: true,
+			contextIsolation: false,
+			webSecurity: false
+		}
+	});
 
-  overlayWindow.setIgnoreMouseEvents(true); // 👈 click-through
+	overlayWindow.setIgnoreMouseEvents(true);
 
-  if (is.dev) {
-    // Development: use Vite dev server
-    overlayWindow.loadURL(`${process.env.ELECTRON_RENDERER_URL}/overlay.html`)
-  } else {
-    // Production: use built file
-    overlayWindow.loadFile(join(__dirname, 'out/renderer/overlay.html'))
-  }
+	if (is.dev && process.env.ELECTRON_RENDERER_URL) {
+		overlayWindow.loadURL(`${process.env.ELECTRON_RENDERER_URL}/overlay.html`);
+		overlayWindow.webContents.openDevTools({ mode: "detach" });
+	} else {
+		const indexPath = join(__dirname, "../renderer/overlay.html");
+		overlayWindow.loadURL(`file://${indexPath}`);
+	}
 
-  overlayWindow.webContents.once("did-finish-load", () => {
-    if (is.dev && overlayWindow) {
-      overlayWindow.webContents.openDevTools({ mode: "detach" });
-    }
-  });
-  return overlayWindow;
-}
+	// // Provide overlay bounds to renderer
+	// ipcMain.handle('overlay:get-bounds', () => {
+	// 	if (!overlayWindow) return null;
+	// 	return overlayWindow.getBounds();
+	// });
 
-export function showOverlay() {
-  overlayWindow?.showInactive();
-}
-
-export function hideOverlay() {
-  overlayWindow?.hide();
+	return overlayWindow;
 }
 
 export function getOverlayWindow() {
-  return overlayWindow;
+	return overlayWindow;
 }
 
+export function showOverlay() {
+	overlayWindow?.showInactive();
+}
+
+export function hideOverlay() {
+	overlayWindow?.hide();
+}
 export function sendOverlayCombo(combo: string) {
-  overlayWindow?.webContents.send("overlay:combo", combo);
+	overlayWindow?.webContents.send("overlay:combo", combo);
 }

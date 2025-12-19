@@ -3,8 +3,6 @@ import fs from "fs";
 import { v4 as uuidv4 } from "uuid";
 import { ffmpegService, FFmpegProcess } from "./ffmpeg.service";
 import { segmentsDir } from "../utils/segments";
-import { spawn } from "child_process";
-import { app } from "electron";
 import { hideMainWindow } from "../windows/main.window";
 import { hideTrimWindow } from "../windows/trim.windows";
 
@@ -36,11 +34,8 @@ export async function startRecording() {
 
   fs.writeFileSync(metaFile, JSON.stringify({
     videoFile: recordFile,
-    startEpochMs: recordingStartEpochMs,
-    clicks: []
+    startEpochMs: recordingStartEpochMs
   }, null, 2));
-
-  startMouseTracker();
 
   const args = [
     "-y",
@@ -91,41 +86,6 @@ export async function startRecording() {
   console.log("Recording started on file:", recordFile);
 }
 
-function mergeClicksIntoMeta(file: string) {
-  try {
-    let clicksFile;
-  if (app.isPackaged) {
-    // In production, packaged resources live under process.resourcesPath
-    clicksFile = path.join(process.resourcesPath, 'python', 'clicks.json');
-  } else {
-    // In dev, point to your local source folder
-    clicksFile = path.join(process.cwd(), 'resources', 'python', 'clicks.json');
-  }
-
-    if (!fs.existsSync(clicksFile)) return;
-
-    const clicks = JSON.parse(fs.readFileSync(clicksFile, "utf-8"));
-    const metaFile = file.replace(".mp4", ".json");
-
-    if (!fs.existsSync(metaFile)) return;
-
-    const meta = JSON.parse(fs.readFileSync(metaFile, "utf-8"));
-
-    clicks.forEach((c: any) => {
-      meta.clicks.push({
-        x: c.x,
-        y: c.y,
-        button: c.button,
-        timeMs: c.timeMs - meta.startEpochMs
-      });
-    });
-
-    fs.writeFileSync(metaFile, JSON.stringify(meta, null, 2));
-    console.log(`Merged ${clicks.length} clicks`);
-  } catch (e) {
-    console.error("Click merge failed", e);
-  }
-}
 
 export async function stopRecording(): Promise<string> {
   if (!recordProc || !recordFile)
@@ -145,52 +105,8 @@ export async function stopRecording(): Promise<string> {
 
     ffmpegService.stop(proc);
 
-    setTimeout(() => mergeClicksIntoMeta(file), 100);
   });
 }
 
-
-let mouseTrackerProcess;
-
-export function startMouseTracker() {
-  if (mouseTrackerProcess) return; // already running
-
-  // Adjust path to your resources/python folder
-
-  let scriptPath;
-
-  if (app.isPackaged) {
-    // In production, packaged resources live under process.resourcesPath
-    scriptPath = path.join(process.resourcesPath, 'python', 'mouse_tracker.py');
-  } else {
-    // In dev, point to your local source folder
-    scriptPath = path.join(process.cwd(), 'resources', 'python', 'mouse_tracker.py');
-  }
-
-
-  mouseTrackerProcess = spawn('python', [scriptPath]);
-
-  mouseTrackerProcess.stdout.on('data', (data) => {
-    try {
-      const str = data.toString().trim();
-      if (str.startsWith('PYTHON DATA: CLICK')) {
-        const json = JSON.parse(str.replace('PYTHON DATA: CLICK ', ''));
-        // ✅ Send click data to renderer via IPC
-        console.log('mouse:click', json);
-      }
-    } catch (e) {
-      console.error('Mouse Tracker parse error:', e);
-    }
-  });
-
-  mouseTrackerProcess.stderr.on('data', (data) => {
-    console.error('Mouse Tracker error:', data.toString());
-  });
-
-  mouseTrackerProcess.on('close', (code) => {
-    console.log('Mouse Tracker exited with code', code);
-    mouseTrackerProcess = null;
-  });
-}
 
 

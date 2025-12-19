@@ -70,14 +70,21 @@ export default function Trim(): React.JSX.Element {
 
   /* Actions */
   const trimSegment = async () => {
-    if (!file) return
-    await window.api.invoke('trim-segment', {
+    if (!file || !videoRef.current) return;
+
+    // Stop playback and release file handle
+    videoRef.current.pause();
+    videoRef.current.src = "";
+    videoRef.current.load(); // forces browser to drop reference
+
+    await window.api.invoke("trim-segment", {
       filePath: file,
       startSec: start,
-      endSec: end
-    })
-    setFile(null)
-  }
+      endSec: end,
+    });
+
+    setFile(null);
+  };
 
   const finalizeVideo = async () => {
     setFinalizing(true)

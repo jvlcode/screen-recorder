@@ -22,6 +22,9 @@ let overlayWindow: BrowserWindow;
 
 export function log(...args: any[]) {
   try {
+    if(is.dev) {
+      console.log(args);
+    }
     const logDir = app.getPath("userData");
     const logFile = path.join(logDir, "app.log");
 
@@ -116,7 +119,7 @@ if (!gotTheLock) {
     /* 2️⃣ Create trim window */
     if (!trimWindow || trimWindow.isDestroyed()) {
       trimWindow = createTrimWindow(mainWindow);
-      log("Main window created");
+      log("Trim window created");
     }
     /* 2️⃣ Create trim window */
     if (!overlayWindow || overlayWindow.isDestroyed()) {

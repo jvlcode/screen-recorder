@@ -1,7 +1,8 @@
 import { app, BrowserWindow, dialog, shell } from "electron";
 import { join } from "path";
 import icon from "../../../resources/icon.png?asset";
-import { startKeyListener, stopKeyListener } from "../services/keybridge.service";
+import {  stopKeyListener } from "../services/keybridge.service";
+import { stopMouseListener } from "../services/mouse.service";
 
 let mainWindow: BrowserWindow | null = null;
 let isQuitting = false; // guard flag
@@ -24,7 +25,6 @@ export function createMainWindow() {
   });
 
   mainWindow.on("ready-to-show", () => {
-    startKeyListener();
     mainWindow!.show()
   });
 
@@ -51,6 +51,7 @@ export function createMainWindow() {
     if (response === 0) {
       isQuitting = true;
       stopKeyListener();
+      stopMouseListener();
       app.quit(); // quit once, no recursion
     }
     // If "No", do nothing
