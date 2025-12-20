@@ -13,6 +13,7 @@ import {
 import { stopRecording } from "./services/recorder.service";
 import { createTrimWindow, sendToTrimWindow, showTrimWindow } from "./windows/trim.windows";
 import { createOverlayWindow, showOverlay } from "./windows/overlay.window";
+import { setDrawingMode } from "./ipc/drawing.ipc";
 
 let mainWindow: BrowserWindow;
 let trimWindow: BrowserWindow;
@@ -154,6 +155,7 @@ if (!gotTheLock) {
         log("Stopping recording...");
         const filePath = await stopRecording();
         log("Recording saved:", filePath);
+        setDrawingMode(false);
 
         showMainWindow();
         showTrimWindow();

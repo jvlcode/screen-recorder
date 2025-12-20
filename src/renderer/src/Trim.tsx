@@ -89,6 +89,11 @@ export default function Trim(): React.JSX.Element {
   const finalizeVideo = async () => {
     setFinalizing(true)
     try {
+      if (!file || !videoRef.current) return;
+      // Stop playback and release file handle
+      videoRef.current.pause();
+      videoRef.current.src = "";
+      videoRef.current.load(); // forces browser to drop reference
       const out = await window.api.invoke('finalize')
       alert(`Saved at:\n${out}`)
     } catch {

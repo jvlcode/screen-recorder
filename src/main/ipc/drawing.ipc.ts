@@ -18,17 +18,17 @@ function registerDrawingShortcuts() {
     getOverlayWindow()?.webContents.send("tool:set", "arrow")
   })
 
-//   globalShortcut.register("3", () => {
-//     getOverlayWindow()?.webContents.send("tool:set", "circle")
-//   })
+  //   globalShortcut.register("3", () => {
+  //     getOverlayWindow()?.webContents.send("tool:set", "circle")
+  //   })
 
-//   globalShortcut.register("4", () => {
-//     getOverlayWindow()?.webContents.send("tool:set", "pen")
-//   })
+  //   globalShortcut.register("4", () => {
+  //     getOverlayWindow()?.webContents.send("tool:set", "pen")
+  //   })
 
   globalShortcut.register("3", () => {
-  getOverlayWindow()?.webContents.send("tool:set", "freeArrow")
-})
+    getOverlayWindow()?.webContents.send("tool:set", "freeArrow")
+  })
 
 
   globalShortcut.register("CommandOrControl+Z", () => {
@@ -57,28 +57,46 @@ function unregisterDrawingShortcuts() {
 ================================ */
 export function registerGlobalShortcuts() {
   // Toggle drawing mode
+  // ✅ ONLY place where toggle happens
   globalShortcut.register("F5", () => {
-    console.log("F5 callec")
-    drawingEnabled = !drawingEnabled
-    getOverlayWindow()?.setIgnoreMouseEvents(!drawingEnabled)
+    console.log("F5 pressed → toggle drawing mode");
+    toggleDrawingMode();
+  });
 
-    getOverlayWindow()?.webContents.send(
-      "drawing:toggle",
-      drawingEnabled
-    )
-
-    if (drawingEnabled) {
-      registerDrawingShortcuts()
-    } else {
-      unregisterDrawingShortcuts()
-    }
-  })
 
   // Clear drawings
   globalShortcut.register("F6", () => {
     getOverlayWindow()?.webContents.send("drawing:clear")
   })
 }
+
+
+
+export function setDrawingMode(enabled: boolean) {
+  // 🔒 force state (no toggle)
+  if (drawingEnabled === enabled) return;
+
+  drawingEnabled = enabled;
+
+  const win = getOverlayWindow();
+  if (!win) return;
+
+  win.setIgnoreMouseEvents(!enabled, { forward: true });
+  win.webContents.send("drawing:toggle", enabled);
+
+  if (enabled) {
+    registerDrawingShortcuts();
+  } else {
+    unregisterDrawingShortcuts();
+  }
+
+  console.log("Drawing mode:", enabled ? "ON" : "OFF");
+}
+
+export function toggleDrawingMode() {
+  setDrawingMode(!drawingEnabled);
+}
+
 
 /* ===============================
    Cleanup

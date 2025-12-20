@@ -70,3 +70,7 @@ export function hideMainWindow() {
   mainWindow?.hide();
   mainWindow?.setSkipTaskbar(true);
 }
+
+export function getMainWindow() {
+  return mainWindow;
+}

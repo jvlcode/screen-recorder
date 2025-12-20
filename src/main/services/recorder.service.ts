@@ -3,8 +3,8 @@ import fs from "fs";
 import { v4 as uuidv4 } from "uuid";
 import { ffmpegService, FFmpegProcess } from "./ffmpeg.service";
 import { segmentsDir } from "../utils/segments";
-import { hideMainWindow } from "../windows/main.window";
-import { hideTrimWindow } from "../windows/trim.windows";
+import { getMainWindow, hideMainWindow } from "../windows/main.window";
+import { getTrimWindow, hideTrimWindow } from "../windows/trim.windows";
 
 
 let recordProc: FFmpegProcess | null = null;
@@ -20,8 +20,25 @@ export async function startRecording() {
     if (!micName) return console.error("No microphone found");
     
   // ✅ restore behavior (correct place)
-  hideMainWindow();
-  hideTrimWindow();
+  // hideMainWindow();
+  // hideTrimWindow();
+   // Hide windows and wait until fully hidden
+   
+    await new Promise<void>((resolve) => {
+        let count = 0;
+        function check() {
+            count++;
+            if (count === 2) resolve(); // both windows hidden
+        }
+        getMainWindow()?.once("hide", check);
+        getTrimWindow()?.once("hide", check);
+
+        hideMainWindow();
+        hideTrimWindow();
+    });
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
+    console.log("All windows hidden. Starting capture now.");
     
   recordingStartEpochMs = Date.now();
 

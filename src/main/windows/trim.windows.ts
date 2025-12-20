@@ -78,3 +78,7 @@ export function sendToTrimWindow(channel: string, payload?: any) {
   }
   trimWindow.webContents.send(channel, payload);
 }
+
+export function getTrimWindow() {
+  return trimWindow;
+}
