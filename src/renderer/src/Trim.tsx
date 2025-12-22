@@ -86,6 +86,24 @@ export default function Trim(): React.JSX.Element {
     setFile(null);
   };
 
+  const discardSegment = async () => {
+    if (!file || !videoRef.current) return;
+
+    if (!confirm("Discard this segment permanently?")) return;
+
+    videoRef.current.pause();
+    videoRef.current.src = "";
+    videoRef.current.load();
+
+    await window.api.invoke("discard-segment", {
+      filePath: file
+    });
+
+    setFile(null);
+  };
+
+
+
   const finalizeVideo = async () => {
     setFinalizing(true)
     try {
@@ -258,6 +276,20 @@ export default function Trim(): React.JSX.Element {
               }}
             >
               Trim & Close
+            </button>
+
+            <button
+              onClick={discardSegment}
+              style={{
+                padding: '10px 20px',
+                fontSize: 15,
+                borderRadius: 6,
+                background: '#f44336',
+                color: '#fff',
+                border: 'none'
+              }}
+            >
+              Discard Segment
             </button>
 
             <button
