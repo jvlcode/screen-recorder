@@ -128,3 +128,30 @@ export async function trimSegmentFile(
 
     return localPath;
 }
+
+/* ---------------- DISCARD SERVICE ---------------- */
+
+export async function discardSegmentFile(filePath: string) {
+    const localPath = filePath.startsWith("file://")
+        ? fileURLToPath(filePath)
+        : filePath;
+
+    const metaFile = localPath.replace(".mp4", ".json");
+
+    if (!fs.existsSync(localPath)) {
+        throw new Error("Video file not found");
+    }
+
+    fs.unlinkSync(localPath);
+
+    if (fs.existsSync(metaFile)) {
+        fs.unlinkSync(metaFile);
+    }
+
+    return {
+        discarded: true,
+        file: localPath
+    };
+}
+
+

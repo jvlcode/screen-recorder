@@ -1,5 +1,5 @@
 import { registerRecordingIpc } from './recording.ipc'
-import { registerTrimIpc } from './trim.ipc'
+import { registerTrimIpc } from './segment.ipc'
 import { registerFinalizeIpc } from './finalize.ipc'
 import { registerGlobalShortcuts } from './drawing.ipc'
 import { registerCursorIPC } from './click.ipc'
