@@ -5,7 +5,9 @@ export default function Trim(): React.JSX.Element {
   const [duration, setDuration] = useState(0)
   const [start, setStart] = useState(0)
   const [end, setEnd] = useState(0)
-  const [finalizing, setFinalizing] = useState(false)
+  const [finalizing, setFinalizing] = useState(false);
+  const [hasTrimmed, setHasTrimmed] = useState(false)
+
 
   const videoRef = useRef<HTMLVideoElement>(null)
 
@@ -20,6 +22,7 @@ export default function Trim(): React.JSX.Element {
       setDuration(0)
       setStart(0)
       setEnd(0)
+      setHasTrimmed(false)   // 👈 reset
     }
 
     window.api.on('recording:stopped', handler)
@@ -70,21 +73,21 @@ export default function Trim(): React.JSX.Element {
 
   /* Actions */
   const trimSegment = async () => {
-    if (!file || !videoRef.current) return;
+    if (!file || !videoRef.current) return
 
-    // Stop playback and release file handle
-    videoRef.current.pause();
-    videoRef.current.src = "";
-    videoRef.current.load(); // forces browser to drop reference
+    videoRef.current.pause()
+    videoRef.current.src = ""
+    videoRef.current.load()
 
     await window.api.invoke("trim-segment", {
       filePath: file,
       startSec: start,
       endSec: end,
-    });
+      hasTrimmed: hasTrimmed
+    })
+    setFile(null)
+  }
 
-    setFile(null);
-  };
 
   const discardSegment = async () => {
     if (!file || !videoRef.current) return;
@@ -226,6 +229,7 @@ export default function Trim(): React.JSX.Element {
               // clamp so start never goes beyond end - 0.01
               if (t < end - 0.01) {
                 setStart(t)
+                setHasTrimmed(true)
                 seekVideo(t, 'start')
               }
             }}
@@ -244,6 +248,7 @@ export default function Trim(): React.JSX.Element {
               // clamp so end never goes before start + 0.01
               if (t > start + 0.01) {
                 setEnd(t)
+                setHasTrimmed(true)
                 seekVideo(t, 'end')
               }
             }}

@@ -34,9 +34,23 @@ async function runSegmentAction<T>(
 export function registerTrimIpc() {
   ipcMain.handle(
     "trim-segment",
-    async (_e, { filePath, startSec, endSec }) => {
-      log("trim-segment called", { filePath, startSec, endSec });
+    async (_e, { filePath, startSec, endSec, hasTrimmed }) => {
+      log("trim-segment called", {
+        filePath,
+        startSec,
+        endSec,
+        hasTrimmed
+      });
 
+      // 🚫 User did NOT trim → skip FFmpeg
+      if (!hasTrimmed) {
+        log("Skipping trim – segment unchanged");
+        return runSegmentAction("Keep Segment", async () => {
+          return { skipped: true };
+        });
+      }
+
+      // ✅ Actual trim
       return runSegmentAction("Trim Segment", () =>
         trimSegmentFile(filePath, startSec, endSec)
       );
