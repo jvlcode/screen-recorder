@@ -89,21 +89,41 @@ export default function Trim(): React.JSX.Element {
   }
 
 
-  const discardSegment = async () => {
-    if (!file || !videoRef.current) return;
+const discardSegment = async () => {
+  if (!file || !videoRef.current) return;
+  if (!confirm("Discard this segment permanently?")) return;
 
-    if (!confirm("Discard this segment permanently?")) return;
+  const video = videoRef.current;
 
-    videoRef.current.pause();
-    videoRef.current.src = "";
-    videoRef.current.load();
+  await waitForVideoRelease(video); // ✅ GUARANTEED SAFE POINT
 
-    await window.api.invoke("discard-segment", {
-      filePath: file
-    });
+  await window.api.invoke("discard-segment", {
+    filePath: file
+  });
 
-    setFile(null);
-  };
+  setFile(null);
+};
+
+const waitForVideoRelease = (video: HTMLVideoElement) => {
+  return new Promise<void>((resolve) => {
+    video.pause();
+    video.removeAttribute("src");
+    video.load();
+
+    const check = () => {
+      if (video.readyState === 0) {
+        resolve();
+      } else {
+        requestAnimationFrame(check);
+      }
+    };
+
+    check();
+  });
+};
+
+
+
 
 
 
